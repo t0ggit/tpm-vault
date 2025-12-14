@@ -121,25 +121,84 @@ sudo ./tpm-vault wipe secrets
 
 ```
 tpm-vault/
-├── CMakeLists.txt
-├── README.md
-├── HANDBOOK.md          # Подробная документация по разработке
-├── include/
-│   ├── tpm_vault.hpp    # Основной класс
-│   ├── tpm_manager.hpp  # Работа с TPM через FAPI
-│   ├── luks_manager.hpp # Работа с LUKS
-│   ├── loop_manager.hpp # Работа с loop-устройствами
-│   └── utils.hpp        # Утилиты
-├── src/
-│   ├── main.cpp
-│   ├── tpm_vault.cpp
-│   ├── tpm_manager.cpp
-│   ├── luks_manager.cpp
-│   ├── loop_manager.cpp
-│   └── utils.cpp
+├── CMakeLists.txt           # Конфигурация сборки (CMake)
+├── README.md                # Основная документация проекта
+├── HANDBOOK.md              # Детальное руководство разработчика
+│
+├── include/                 # Заголовочные файлы (публичные интерфейсы)
+│   ├── tpm_vault.hpp        # Главный координатор всех операций
+│   ├── tpm_manager.hpp      # Интерфейс для работы с TPM2 FAPI
+│   ├── luks_manager.hpp     # Менеджер LUKS-шифрования
+│   ├── loop_manager.hpp     # Менеджер loop-устройств
+│   └── utils.hpp            # Вспомогательные функции
+│
+├── src/                     # Исходный код (реализация)
+│   ├── main.cpp             # Точка входа и CLI-парсинг
+│   ├── tpm_vault.cpp        # Реализация TPMVault
+│   ├── tpm_manager.cpp      # Seal/Unseal через TPM2-TSS
+│   ├── luks_manager.cpp     # Вызовы cryptsetup
+│   ├── loop_manager.cpp     # Вызовы losetup
+│   └── utils.cpp            # Реализация утилит
+│
 └── scripts/
-    └── test-in-qemu.sh  # Скрипт для тестирования в QEMU
+    └── test-in-qemu.sh      # Автоматическое тестирование с swtpm
 ```
+
+### Описание модулей
+
+#### Основные компоненты
+
+| Модуль | Назначение | Ключевые функции |
+|--------|------------|------------------|
+| **tpm_vault** | Главный координатор, объединяющий все компоненты | `create()`, `open()`, `close()`, `list()`, `wipe()` |
+| **tpm_manager** | Работа с TPM2 через Feature API (FAPI) | `seal()` — сохранение ключа в TPM<br>`unseal()` — извлечение ключа из TPM |
+| **luks_manager** | Управление LUKS2-шифрованием | `format()` — создание зашифрованного раздела<br>`open()` — расшифровка раздела<br>`close()` — закрытие зашифрованного раздела |
+| **loop_manager** | Работа с loop-устройствами (образы как блочные устройства) | `setup()` — подключение образа к /dev/loop*<br>`detach()` — отключение loop-устройства |
+| **utils** | Вспомогательные функции безопасности и выполнения команд | `secure_erase()` — безопасное стирание памяти<br>`execute_command()` — запуск внешних команд<br>`check_root()` — проверка root-прав |
+
+#### CLI (main.cpp)
+
+Точка входа программы. Парсит команды:
+- `create <name> [size]` → создание хранилища
+- `open <name>` → открытие и монтирование
+- `close <name>` → размонтирование и закрытие
+- `list` → список активных хранилищ
+- `wipe <name>` → удаление ключа из TPM
+
+#### Взаимодействие компонентов
+
+```
+┌─────────────┐
+│   main.cpp  │  Обработка команд CLI
+└──────┬──────┘
+       │
+       v
+┌─────────────┐
+│  tpm_vault  │  Координация всех операций
+└──────┬──────┘
+       │
+       ├──> tpm_manager ──> TPM2 FAPI ──> /dev/tpm0
+       │                      (seal/unseal с PCR-политикой)
+       │
+       ├──> loop_manager ──> losetup ──> /dev/loop*
+       │                      (монтирование образа)
+       │
+       ├──> luks_manager ──> cryptsetup ──> /dev/mapper/luks-*
+       │                      (LUKS2-шифрование)
+       │
+       └──> utils ──> secure_erase(), execute_command()
+                      (безопасность + системные вызовы)
+```
+
+#### Поток данных при создании хранилища
+
+1. **main.cpp** получает команду `create secrets 100M`
+2. **tpm_vault** генерирует мастер-ключ (512 бит из /dev/urandom)
+3. **loop_manager** создаёт файл-образ 100M и подключает его как /dev/loop0
+4. **luks_manager** форматирует /dev/loop0 с LUKS2, используя мастер-ключ
+5. **tpm_manager** сохраняет мастер-ключ в TPM с политикой PCR 0,7
+6. **utils::secure_erase()** стирает мастер-ключ из памяти
+7. Хранилище готово к использованию
 
 ## Тестирование в QEMU с swtpm
 
