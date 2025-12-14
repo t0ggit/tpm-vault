@@ -160,7 +160,7 @@ int execute_command(const std::string& cmd, const std::vector<uint8_t>* stdin_da
             dup2(pipe_fd[0], STDIN_FILENO);
             ::close(pipe_fd[0]);
         }
-        
+
         // Redirect stdout/stderr to /dev/null for clean output
         int devnull = ::open("/dev/null", O_WRONLY);
         if (devnull >= 0) {
@@ -168,7 +168,7 @@ int execute_command(const std::string& cmd, const std::vector<uint8_t>* stdin_da
             dup2(devnull, STDERR_FILENO);
             ::close(devnull);
         }
-        
+
         execl("/bin/sh", "sh", "-c", cmd.c_str(), nullptr);
         _exit(127);
     }

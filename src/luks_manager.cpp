@@ -2,6 +2,7 @@
 #include "utils.hpp"
 
 #include <sstream>
+#include <sys/stat.h>
 
 namespace tpm_vault {
 
@@ -24,8 +25,9 @@ void LuksManager::format(const std::string& device, const std::vector<uint8_t>& 
         << " --key-file -"
         << " --key-size " << (key.size() * 8)  // размер в битах
         << " " << device;
-    
+
     int ret = execute_command(cmd.str(), &key);
+
     if (ret != 0) {
         throw VaultError("Failed to format LUKS container on " + device);
     }
@@ -33,11 +35,11 @@ void LuksManager::format(const std::string& device, const std::vector<uint8_t>& 
 
 void LuksManager::open(const std::string& device, const std::string& mapper_name,
                        const std::vector<uint8_t>& key) {
-    // Проверяем, не открыт ли уже
+    // Если устройство уже открыто, сначала закрываем его
     if (is_open(mapper_name)) {
-        throw VaultError(mapper_name + " is already open");
+        close(mapper_name);
     }
-    
+
     // cryptsetup luksOpen --key-file - <device> <mapper-name>
     std::ostringstream cmd;
     cmd << "cryptsetup open"
@@ -45,8 +47,9 @@ void LuksManager::open(const std::string& device, const std::string& mapper_name
         << " --key-file -"
         << " " << device
         << " " << mapper_name;
-    
+
     int ret = execute_command(cmd.str(), &key);
+
     if (ret != 0) {
         throw VaultError("Failed to open LUKS container on " + device);
     }
@@ -69,7 +72,9 @@ void LuksManager::close(const std::string& mapper_name) {
 
 bool LuksManager::is_open(const std::string& mapper_name) {
     std::string mapper_path = get_mapper_path(mapper_name);
-    return file_exists(mapper_path);
+    // Используем stat напрямую, так как /dev/mapper/* это блочные устройства, а не обычные файлы
+    struct stat st;
+    return stat(mapper_path.c_str(), &st) == 0;
 }
 
 } // namespace tpm_vault

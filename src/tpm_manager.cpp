@@ -19,7 +19,7 @@ const char* TpmManager::PCR_POLICY_JSON =
             "\"type\":\"POLICYPCR\","
             "\"currentPCRandBanks\":["
                 "{"
-                    "\"hashAlg\":\"TPM2_ALG_SHA256\","
+                    "\"hash\":\"TPM2_ALG_SHA256\","
                     "\"pcrSelect\":[0,7]"
                 "}"
             "]"
@@ -113,7 +113,7 @@ void TpmManager::seal(const std::string& name, const std::vector<uint8_t>& data)
         ctx_,
         path.c_str(),           // path
         "noDa",                 // type
-        0,                      // size (0 = используем предоставленные данные)
+        data.size(),            // size - размер данных в байтах
         POLICY_PATH,            // policyPath - политика PCR
         nullptr,                // authValue (пароль не используем)
         data.data()             // data
