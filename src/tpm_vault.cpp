@@ -8,6 +8,7 @@
 #include <sstream>
 #include <cstring>
 #include <climits>
+#include <exception>
 #include <sys/mount.h>
 #include <mntent.h>
 
@@ -234,17 +235,36 @@ void TpmVault::close(const std::string& name) {
     std::string image_path = get_image_path(name);
     std::string mount_path = get_mount_path(name);
     std::string mapper_name = LuksManager::get_mapper_name(name);
-    
+
+    std::exception_ptr first_error;
+
     // 1. Размонтируем файловую систему
-    unmount_filesystem(mount_path);
-    
+    try {
+        unmount_filesystem(mount_path);
+    } catch (...) {
+        if (!first_error) first_error = std::current_exception();
+    }
+
     // 2. Закрываем LUKS-устройство
-    luks_->close(mapper_name);
-    
+    try {
+        luks_->close(mapper_name);
+    } catch (...) {
+        if (!first_error) first_error = std::current_exception();
+    }
+
     // 3. Отключаем loop-устройство
-    std::string loop_device = loop_->find_loop_for_file(image_path);
-    if (!loop_device.empty()) {
-        loop_->detach(loop_device);
+    try {
+        std::string loop_device = loop_->find_loop_for_file(image_path);
+        if (!loop_device.empty()) {
+            loop_->detach(loop_device);
+        }
+    } catch (...) {
+        if (!first_error) first_error = std::current_exception();
+    }
+
+    // Перебрасываем первую ошибку после попытки очистить всё
+    if (first_error) {
+        std::rethrow_exception(first_error);
     }
 }
 

@@ -181,31 +181,34 @@ void TpmManager::remove(const std::string& name) {
 }
 
 bool TpmManager::exists(const std::string& name) {
-    std::string path = get_seal_path(name);
-    
-    // Пробуем получить информацию об объекте
-    char* info = nullptr;
-    TSS2_RC rc = Fapi_GetInfo(ctx_, &info);
-    
-    if (info) {
-        Fapi_Free(info);
-    }
-    
-    // Более надёжный способ - попробовать прочитать путь
-    // Но это может быть дорого, поэтому используем List
     char* pathList = nullptr;
-    rc = Fapi_List(ctx_, "/HS/SRK", &pathList);
-    
+    TSS2_RC rc = Fapi_List(ctx_, "/HS/SRK", &pathList);
+
     if (rc != TSS2_RC_SUCCESS || !pathList) {
         return false;
     }
-    
+
     std::string paths(pathList);
     Fapi_Free(pathList);
-    
-    // Ищем наш путь в списке
+
+    // Точное сравнение с разделителями
     std::string search_path = get_seal_path(name);
-    return paths.find(search_path) != std::string::npos;
+
+    // Ищем как отдельный элемент (разделитель — перенос строки или начало/конец)
+    size_t pos = paths.find(search_path);
+    while (pos != std::string::npos) {
+        // Проверяем, что это полное совпадение пути
+        bool start_ok = (pos == 0 || paths[pos - 1] == '\n' || paths[pos - 1] == ':');
+        size_t end_pos = pos + search_path.size();
+        bool end_ok = (end_pos == paths.size() || paths[end_pos] == '\n' || paths[end_pos] == ':');
+
+        if (start_ok && end_ok) {
+            return true;
+        }
+        pos = paths.find(search_path, pos + 1);
+    }
+
+    return false;
 }
 
 } // namespace tpm_vault

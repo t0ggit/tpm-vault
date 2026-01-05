@@ -58,7 +58,7 @@ std::string LoopManager::find_loop_for_file(const std::string& image_path) {
         return "";
     }
     
-    char buffer[256];
+    char buffer[1024];
     std::string result;
     if (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
         result = buffer;
