@@ -40,6 +40,22 @@
 
 ## Установка
 
+Предварительно установить `tss2-fapi` свежей версии, через `apt` пока ставится только старая с багами:
+
+```bash
+sudo apt-get install -y autoconf automake libtool pkg-config gcc \
+  libssl-dev libjson-c-dev libcurl4-openssl-dev uuid-dev
+
+cd /tmp
+git clone --depth 1 --branch 4.1.0 https://github.com/tpm2-software/tpm2-tss.git
+cd tpm2-tss
+
+./bootstrap
+./configure --prefix=/usr
+make -j$(nproc)
+sudo make install
+```
+
 ### Ubuntu/Debian
 
 ```bash
@@ -47,7 +63,6 @@
 sudo apt update
 sudo apt install -y \
     build-essential cmake pkg-config \
-    libtss2-dev \
     cryptsetup \
     e2fsprogs
 
