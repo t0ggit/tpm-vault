@@ -154,11 +154,11 @@ std::vector<uint8_t> TpmManager::unseal(const std::string& name) {
     
     // Копируем данные в вектор
     std::vector<uint8_t> result(data, data + size);
-    
-    // Затираем и освобождаем память FAPI
-    secure_erase(data, size);
+
+    // Освобождаем память FAPI
+    // (данные скопированы и будут безопасно затёрты в SecureBuffer)
     Fapi_Free(data);
-    
+
     return result;
 }
 
